@@ -1,13 +1,19 @@
 package gowinrm
 
 import (
-	"encoding/base64"
+	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strings"
+	"unicode/utf8"
+	"unsafe"
 
 	"github.com/thxcode/gowinrm/pkg/protocol"
 	"github.com/thxcode/gowinrm/pkg/transport"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 type ShellType uint32
@@ -17,17 +23,21 @@ const (
 	PowerShell
 )
 
+var (
+	UTF16LeEncoder = unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM).NewEncoder()
+)
+
 type Session struct {
 	// This is a unique identifier for a client session, which is a set of related operations against a server.
 	id string
 
-	dialer transport.Dialer
+	ssp transport.SSP
 }
 
-func NewSession(dialer transport.Dialer) *Session {
+func NewSession(ssp transport.SSP) *Session {
 	ret := &Session{
-		id:     protocol.NewUUIDWithPrefix(),
-		dialer: dialer,
+		id:  protocol.NewUUIDWithPrefix(),
+		ssp: ssp,
 	}
 
 	return ret
@@ -35,28 +45,31 @@ func NewSession(dialer transport.Dialer) *Session {
 
 func (s *Session) Close() error {
 	if s != nil {
-		s.dialer.Close()
+		s.ssp.Close()
 	}
 
 	return nil
 }
 
-func ToUTF16le(cmdExpression string, arguments ...string) string {
-	stub := []byte("\x00")
-	sb := &strings.Builder{}
-
-	for _, b := range []byte(cmdExpression + " " + strings.Join(arguments, " ")) {
-		sb.Write([]byte{b})
-		sb.Write(stub)
+func toUTF16le(cmdExpression string, arguments ...string) (string, error) {
+	source := cmdExpression + " " + strings.Join(arguments, " ")
+	if !utf8.ValidString(source) {
+		return "", encoding.ErrInvalidUTF8
 	}
 
-	// Base64 encode the command
-	input := []uint8(sb.String())
-	return base64.StdEncoding.EncodeToString(input)
+	sourceReader := bytes.NewReader([]byte(source))
+	transformReader := transform.NewReader(sourceReader, UTF16LeEncoder)
+
+	result, err := ioutil.ReadAll(transformReader)
+	if err != nil {
+		return "", err
+	}
+
+	return *(*string)(unsafe.Pointer(&result)), nil
 }
 
-func (s *Session) NewInteractiveCommand(shellType ShellType, cmdExpression string, arguments ...string) (*transport.InteractiveCmd, error) {
-	sh := transport.NewShell(s.id, s.dialer)
+func (s *Session) NewInteractiveCommand(shellType ShellType, cmdExpression string, arguments ...string) (*transport.InteractiveCommand, error) {
+	sh := transport.NewShell(s.id, s.ssp)
 	err := sh.Open()
 	if err != nil {
 		return nil, err
@@ -64,7 +77,12 @@ func (s *Session) NewInteractiveCommand(shellType ShellType, cmdExpression strin
 
 	switch shellType {
 	case PowerShell:
-		cmdExpression = fmt.Sprintf("powershell -encodedCommand %s", ToUTF16le(cmdExpression, arguments...))
+		cmdExpression, err := toUTF16le(cmdExpression, arguments...)
+		if err != nil {
+			return nil, err
+		}
+
+		cmdExpression = fmt.Sprintf("powershell -encodedCommand %s", cmdExpression)
 		arguments = []string{}
 		fallthrough
 	case Command:
@@ -79,8 +97,8 @@ func (s *Session) NewInteractiveCommand(shellType ShellType, cmdExpression strin
 	return nil, errors.New("invalid command type")
 }
 
-func (s *Session) NewResultCommand(shellType ShellType, cmdExpression string, arguments ...string) (*transport.ResultCmd, error) {
-	sh := transport.NewShell(s.id, s.dialer)
+func (s *Session) NewResultCommand(shellType ShellType, cmdExpression string, arguments ...string) (*transport.ResultCommand, error) {
+	sh := transport.NewShell(s.id, s.ssp)
 	err := sh.Open()
 	if err != nil {
 		return nil, err
@@ -88,7 +106,12 @@ func (s *Session) NewResultCommand(shellType ShellType, cmdExpression string, ar
 
 	switch shellType {
 	case PowerShell:
-		cmdExpression = fmt.Sprintf("powershell -encodedCommand %s", ToUTF16le(cmdExpression, arguments...))
+		cmdExpression, err := toUTF16le(cmdExpression, arguments...)
+		if err != nil {
+			return nil, err
+		}
+
+		cmdExpression = fmt.Sprintf("powershell -encodedCommand %s", cmdExpression)
 		arguments = []string{}
 		fallthrough
 	case Command:

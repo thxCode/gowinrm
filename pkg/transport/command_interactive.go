@@ -15,11 +15,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type InteractiveCmd struct {
-	*ResultCmd
+type InteractiveCommand struct {
+	*ResultCommand
 }
 
-func (c *InteractiveCmd) Send(inputStreamMap map[string]io.Reader) error {
+func (c *InteractiveCommand) Send(inputStreamMap map[string]io.Reader) error {
 	log.Debugln("stdout command")
 
 	if len(inputStreamMap) == 0 {
@@ -34,7 +34,7 @@ func (c *InteractiveCmd) Send(inputStreamMap map[string]io.Reader) error {
 	enveloper := envelope.Build()
 	header := enveloper.Header()
 	header.
-		To(c.shell.dialer.GetURL()).
+		To(c.shell.ssp.GetRemoteEndpointAddress()).
 		ReplyTo(replayTo).
 		MaxEnvelopeSize(c.shell.maxEnvelopeSize).
 		MessageID(messageID).
@@ -72,7 +72,7 @@ func (c *InteractiveCmd) Send(inputStreamMap map[string]io.Reader) error {
 			}
 		}
 
-		responseBytes, err := c.shell.dialer.Dial(c.shell.requestTimeOut, envelopeBytes)
+		responseBytes, err := c.shell.ssp.Dial(c.shell.requestTimeOut, envelopeBytes)
 		if err != nil {
 			return &GoWinRMErr{
 				Actual: err,

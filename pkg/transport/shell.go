@@ -21,7 +21,7 @@ const (
 )
 
 type Shell struct {
-	dialer         Dialer
+	ssp            SSP
 	sessionId      string
 	id             string
 	requestTimeOut time.Duration
@@ -71,11 +71,11 @@ type Shell struct {
 	dataLocale string
 }
 
-func NewShell(sessionId string, dialer Dialer) *Shell {
+func NewShell(sessionId string, ssp SSP) *Shell {
 	log.Debug("create a new command command")
 
 	return &Shell{
-		dialer:           dialer,
+		ssp:              ssp,
 		sessionId:        sessionId,
 		requestTimeOut:   60,
 		maxEnvelopeSize:  153600,
@@ -97,7 +97,7 @@ func (s *Shell) Open() error {
 	enveloper := envelope.Build()
 	header := enveloper.Header()
 	header.
-		To(s.dialer.GetURL()).
+		To(s.ssp.GetRemoteEndpointAddress()).
 		ReplyTo(replayTo).
 		MaxEnvelopeSize(s.maxEnvelopeSize).
 		SessionID(s.sessionId).
@@ -139,16 +139,17 @@ func (s *Shell) Open() error {
 		}
 	}
 
-	responseBytes, err := s.dialer.Dial(s.requestTimeOut, envelopeBytes)
+	if log.GetLevel() > log.WarnLevel {
+		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
+	}
+	responseBytes, err := s.ssp.Dial(s.requestTimeOut, envelopeBytes)
 	if err != nil {
 		return &GoWinRMErr{
 			Actual: err,
 			Msg:    fmt.Sprintf("dial failure: %s", err.Error()),
 		}
 	}
-
 	if log.GetLevel() > log.WarnLevel {
-		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
 		log.Infoln("rep soap:", *(*string)(unsafe.Pointer(&responseBytes)))
 	}
 
@@ -173,13 +174,13 @@ func (s *Shell) Open() error {
 	return nil
 }
 
-func (s *Shell) ExecuteResult(command string, arguments ...string) (*ResultCmd, error) {
+func (s *Shell) ExecuteResult(command string, arguments ...string) (*ResultCommand, error) {
 	log.Debugln("execute command")
 
 	enveloper := envelope.Build()
 	header := enveloper.Header()
 	header.
-		To(s.dialer.GetURL()).
+		To(s.ssp.GetRemoteEndpointAddress()).
 		ReplyTo(replayTo).
 		MaxEnvelopeSize(s.maxEnvelopeSize).
 		MessageID("uuid:" + protocol.NewUUIDWithPrefix()).
@@ -206,16 +207,17 @@ func (s *Shell) ExecuteResult(command string, arguments ...string) (*ResultCmd, 
 		}
 	}
 
-	responseBytes, err := s.dialer.Dial(s.requestTimeOut, envelopeBytes)
+	if log.GetLevel() > log.WarnLevel {
+		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
+	}
+	responseBytes, err := s.ssp.Dial(s.requestTimeOut, envelopeBytes)
 	if err != nil {
 		return nil, &GoWinRMErr{
 			Actual: err,
 			Msg:    fmt.Sprintf("dial failure: %s", err.Error()),
 		}
 	}
-
 	if log.GetLevel() > log.WarnLevel {
-		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
 		log.Infoln("rep soap:", *(*string)(unsafe.Pointer(&responseBytes)))
 	}
 
@@ -235,20 +237,20 @@ func (s *Shell) ExecuteResult(command string, arguments ...string) (*ResultCmd, 
 		}
 	}
 
-	return &ResultCmd{
+	return &ResultCommand{
 		id:    commandId,
 		shell: s,
 	}, nil
 
 }
 
-func (s *Shell) ExecuteInteractive(command string, arguments ...string) (*InteractiveCmd, error) {
+func (s *Shell) ExecuteInteractive(command string, arguments ...string) (*InteractiveCommand, error) {
 	result, err := s.ExecuteResult(command, arguments...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &InteractiveCmd{
+	return &InteractiveCommand{
 		result,
 	}, nil
 }
@@ -261,7 +263,7 @@ func (s *Shell) Close() error {
 	enveloper := envelope.Build()
 	header := enveloper.Header()
 	header.
-		To(s.dialer.GetURL()).
+		To(s.ssp.GetRemoteEndpointAddress()).
 		ReplyTo(replayTo).
 		MaxEnvelopeSize(s.maxEnvelopeSize).
 		SessionID(s.sessionId).
@@ -281,16 +283,17 @@ func (s *Shell) Close() error {
 		}
 	}
 
-	responseBytes, err := s.dialer.Dial(s.requestTimeOut, envelopeBytes)
+	if log.GetLevel() > log.WarnLevel {
+		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
+	}
+	responseBytes, err := s.ssp.Dial(s.requestTimeOut, envelopeBytes)
 	if err != nil {
 		return &GoWinRMErr{
 			Actual: err,
 			Msg:    fmt.Sprintf("dial failure: %s", err.Error()),
 		}
 	}
-
 	if log.GetLevel() > log.WarnLevel {
-		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
 		log.Infoln("rep soap:", *(*string)(unsafe.Pointer(&responseBytes)))
 	}
 
@@ -319,7 +322,7 @@ func (s *Shell) Disconnect() error {
 	enveloper := envelope.Build()
 	header := enveloper.Header()
 	header.
-		To(s.dialer.GetURL()).
+		To(s.ssp.GetRemoteEndpointAddress()).
 		ReplyTo(replayTo).
 		MaxEnvelopeSize(s.maxEnvelopeSize).
 		MessageID(protocol.NewUUIDWithPrefix()).
@@ -344,16 +347,17 @@ func (s *Shell) Disconnect() error {
 		}
 	}
 
-	responseBytes, err := s.dialer.Dial(s.requestTimeOut, envelopeBytes)
+	if log.GetLevel() > log.WarnLevel {
+		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
+	}
+	responseBytes, err := s.ssp.Dial(s.requestTimeOut, envelopeBytes)
 	if err != nil {
 		return &GoWinRMErr{
 			Actual: err,
 			Msg:    fmt.Sprintf("dial failure: %s", err.Error()),
 		}
 	}
-
 	if log.GetLevel() > log.WarnLevel {
-		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
 		log.Infoln("rep soap:", *(*string)(unsafe.Pointer(&responseBytes)))
 	}
 
@@ -384,7 +388,7 @@ func (s *Shell) Reconnect() error {
 	enveloper := envelope.Build()
 	header := enveloper.Header()
 	header.
-		To(s.dialer.GetURL()).
+		To(s.ssp.GetRemoteEndpointAddress()).
 		ReplyTo(replayTo).
 		MaxEnvelopeSize(s.maxEnvelopeSize).
 		MessageID(protocol.NewUUIDWithPrefix()).
@@ -404,12 +408,18 @@ func (s *Shell) Reconnect() error {
 		}
 	}
 
-	responseBytes, err := s.dialer.Dial(s.requestTimeOut, envelopeBytes)
+	if log.GetLevel() > log.WarnLevel {
+		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
+	}
+	responseBytes, err := s.ssp.Dial(s.requestTimeOut, envelopeBytes)
 	if err != nil {
 		return &GoWinRMErr{
 			Actual: err,
 			Msg:    fmt.Sprintf("dial failure: %s", err.Error()),
 		}
+	}
+	if log.GetLevel() > log.WarnLevel {
+		log.Infoln("rep soap:", *(*string)(unsafe.Pointer(&responseBytes)))
 	}
 
 	reader, err := envelope.Read(bytes.NewReader(responseBytes))
@@ -420,10 +430,7 @@ func (s *Shell) Reconnect() error {
 		}
 	}
 
-	if log.GetLevel() > log.WarnLevel {
-		log.Infoln("req soap:", *(*string)(unsafe.Pointer(&envelopeBytes)))
-		log.Infoln("rep soap:", *(*string)(unsafe.Pointer(&responseBytes)))
-	}
+
 
 	relatesToId := reader.Header().RelatesTo()
 	if relatesToId == "" {

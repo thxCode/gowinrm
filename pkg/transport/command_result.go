@@ -14,18 +14,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type ResultCmd struct {
+type ResultCommand struct {
 	id    string
 	shell *Shell
 }
 
-func (c *ResultCmd) Stop() error {
+func (c *ResultCommand) Stop() error {
 	log.Debugln("terminate command")
 
 	enveloper := envelope.Build()
 	header := enveloper.Header()
 	header.
-		To(c.shell.dialer.GetURL()).
+		To(c.shell.ssp.GetRemoteEndpointAddress()).
 		ReplyTo(replayTo).
 		MaxEnvelopeSize(c.shell.maxEnvelopeSize).
 		MessageID(protocol.NewUUIDWithPrefix()).
@@ -48,7 +48,7 @@ func (c *ResultCmd) Stop() error {
 		}
 	}
 
-	responseBytes, err := c.shell.dialer.Dial(c.shell.requestTimeOut, envelopeBytes)
+	responseBytes, err := c.shell.ssp.Dial(c.shell.requestTimeOut, envelopeBytes)
 	if err != nil {
 		return &GoWinRMErr{
 			Actual: err,
@@ -72,7 +72,7 @@ func (c *ResultCmd) Stop() error {
 	return nil
 }
 
-func (c *ResultCmd) Receive(outputStreamsMap map[string]io.Writer) error {
+func (c *ResultCommand) Receive(outputStreamsMap map[string]io.Writer) error {
 	log.Debugln("stdout command")
 
 	if len(outputStreamsMap) == 0 {
@@ -93,7 +93,7 @@ func (c *ResultCmd) Receive(outputStreamsMap map[string]io.Writer) error {
 	enveloper := envelope.Build()
 	header := enveloper.Header()
 	header.
-		To(c.shell.dialer.GetURL()).
+		To(c.shell.ssp.GetRemoteEndpointAddress()).
 		ReplyTo(replayTo).
 		MaxEnvelopeSize(c.shell.maxEnvelopeSize).
 		MessageID(messageID).
@@ -117,7 +117,7 @@ func (c *ResultCmd) Receive(outputStreamsMap map[string]io.Writer) error {
 			}
 		}
 
-		responseBytes, err := c.shell.dialer.Dial(c.shell.requestTimeOut, envelopeBytes)
+		responseBytes, err := c.shell.ssp.Dial(c.shell.requestTimeOut, envelopeBytes)
 		if err != nil {
 			return &GoWinRMErr{
 				Actual: err,
@@ -171,7 +171,7 @@ func (c *ResultCmd) Receive(outputStreamsMap map[string]io.Writer) error {
 	return io.EOF
 }
 
-func (c *ResultCmd) Close() error {
+func (c *ResultCommand) Close() error {
 	log.Debugln("close command")
 
 	if c != nil {
