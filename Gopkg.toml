@@ -1,0 +1,23 @@
+[[constraint]]
+  branch = "master"
+  name = "github.com/Azure/go-ntlmssp"
+
+[[constraint]]
+  name = "github.com/pborman/uuid"
+  version = "1.1.0"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.2"
+
+[[constraint]]
+  name = "github.com/beevik/etree"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/onsi/ginkgo"
+  version = "1.4.0"
+
+[[constraint]]
+  name = "github.com/onsi/gomega"
+  version = "1.1.0"
